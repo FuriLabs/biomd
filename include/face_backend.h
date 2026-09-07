@@ -62,6 +62,14 @@ typedef struct {
     gboolean (*is_available)(FaceBackend *self);
 
     /**
+     * Get the implementation type of the backend.
+     *
+     * @param self The backend instance
+     * @return TYPE_UNKNOWN if the backend provides no face support
+     */
+    FaceImplementationType (*get_implementation_type)(FaceBackend *self);
+
+    /**
      * Set up the default configuration for the backend.
      *
      * @param self The backend instance
@@ -173,6 +181,20 @@ face_backend_is_available(FaceBackend *backend)
     g_return_val_if_fail(backend != NULL, FALSE);
     g_return_val_if_fail(backend->vtable.is_available != NULL, FALSE);
     return backend->vtable.is_available(backend);
+}
+
+/**
+ * Get the implementation type of the backend.
+ *
+ * @param backend The backend instance
+ * @return TYPE_UNKNOWN if the backend provides no face support
+ */
+static inline FaceImplementationType
+face_backend_get_implementation_type(FaceBackend *backend)
+{
+    g_return_val_if_fail(backend != NULL, TYPE_UNKNOWN);
+    g_return_val_if_fail(backend->vtable.get_implementation_type != NULL, TYPE_UNKNOWN);
+    return backend->vtable.get_implementation_type(backend);
 }
 
 /**

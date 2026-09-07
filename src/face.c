@@ -7,6 +7,7 @@
 #include "introspect.h"
 #include "face_backend.h"
 #include "face_fart_backend.h"
+#include "face_disabled_backend.h"
 
 static GDBusNodeInfo *face_introspection_data = NULL;
 static GDBusNodeInfo *face_agent_introspection_data = NULL;
@@ -1237,6 +1238,14 @@ handle_face_method_call(GDBusConnection *connection,
         return;
     }
 
+    if (self->implementation_type == TYPE_UNKNOWN) {
+        g_dbus_method_invocation_return_error(invocation,
+                                              G_DBUS_ERROR,
+                                              G_DBUS_ERROR_NOT_SUPPORTED,
+                                              "Face is not supported");
+        return;
+    }
+
     if (g_strcmp0(method_name, "CreateAgent") == 0) {
         gchar *new_path = make_next_agent_path();
 
@@ -1554,13 +1563,21 @@ face_init(GDBusConnection *connection)
         .user_data = face_state
     };
 
+#ifdef FACE_DISABLED
+    face_state->backend = face_disabled_backend_new(cb);
+#else
     face_state->backend = face_fart_backend_new(cb);
+#endif
     if (!face_state->backend) {
         g_warning("Failed to create face backend");
         face_state->implementation_type = TYPE_UNKNOWN;
         face_state->face_enrolled = FALSE;
+    } else if (face_backend_get_implementation_type(face_state->backend) == TYPE_UNKNOWN) {
+        g_debug("Face backend provides no face support");
+        face_state->implementation_type = TYPE_UNKNOWN;
+        face_state->face_enrolled = FALSE;
     } else {
-        face_state->implementation_type = TYPE_SOFTWARE;
+        face_state->implementation_type = face_backend_get_implementation_type(face_state->backend);
 
         if (face_backend_is_available(face_state->backend))
             face_backend_setup_default(face_state->backend);

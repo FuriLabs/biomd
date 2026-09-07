@@ -4,8 +4,22 @@ CC ?= gcc
 ENV_CFLAGS := $(CFLAGS)
 ENV_LDFLAGS := $(LDFLAGS)
 
-CFLAGS = $(ENV_CFLAGS) `pkg-config --cflags gio-2.0 glib-2.0 libgbinder sqlite3` -Iinclude
-LDFLAGS = $(ENV_LDFLAGS) `pkg-config --libs gio-2.0 glib-2.0 libgbinder sqlite3` -lfart -lcrypto
+# WITH_FACE=0 builds without the FART backend, face is then reported as not supported
+WITH_FACE ?= 1
+
+ifeq ($(WITH_FACE),0)
+SOURCES_FACE_BACKEND = src/face_disabled_backend.c
+CFLAGS_FACE = -DFACE_DISABLED
+LDFLAGS_FACE =
+else
+SOURCES_FACE_BACKEND = src/face_fart_backend.c \
+                       src/face_tensorflow_fart.c
+CFLAGS_FACE =
+LDFLAGS_FACE = -lfart
+endif
+
+CFLAGS = $(ENV_CFLAGS) `pkg-config --cflags gio-2.0 glib-2.0 libgbinder sqlite3` -Iinclude $(CFLAGS_FACE)
+LDFLAGS = $(ENV_LDFLAGS) `pkg-config --libs gio-2.0 glib-2.0 libgbinder sqlite3` $(LDFLAGS_FACE) -lcrypto
 
 CFLAGS_SESSION = $(ENV_CFLAGS) `pkg-config --cflags gio-2.0 glib-2.0 gstreamer-1.0` -Iinclude -Iinclude/session
 LDFLAGS_SESSION = $(ENV_LDFLAGS) `pkg-config --libs gio-2.0 glib-2.0 gstreamer-1.0`
@@ -26,8 +40,7 @@ SOURCES = src/biomd.c \
           src/fpd_compat.c \
           src/face.c \
           src/face_backend.c \
-          src/face_fart_backend.c \
-          src/face_tensorflow_fart.c
+          $(SOURCES_FACE_BACKEND)
 
 SOURCES_SESSION = src/session/biomd_session.c \
                   src/session/session_face.c \

@@ -20,6 +20,13 @@ fart_is_available(FaceBackend *self)
     return data && data->tf && face_tensorflow_fart_is_available(data->tf);
 }
 
+static FaceImplementationType
+fart_get_implementation_type(FaceBackend *self)
+{
+    (void) self;
+    return TYPE_SOFTWARE;
+}
+
 static gboolean
 fart_setup_default(FaceBackend *self)
 {
@@ -126,6 +133,7 @@ face_fart_backend_new(FaceBackendCallbacks callbacks)
 {
     FaceBackendVTable vtable = {
         .is_available = fart_is_available,
+        .get_implementation_type = fart_get_implementation_type,
         .setup_default = fart_setup_default,
         .start_enrollment = fart_start_enrollment,
         .start_recognition = fart_start_recognition,
