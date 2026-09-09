@@ -13,6 +13,7 @@
 #define DB_DIR "/var/lib/biomd"
 #define DB_PATH "/var/lib/biomd/fingerprints.db"
 
+/* suggested names, any valid UTF-8 label is accepted */
 static gchar *valid_finger_names[] = {
     "right-index-finger",
     "left-index-finger",
@@ -26,6 +27,8 @@ static gchar *valid_finger_names[] = {
     "left-little-finger",
     NULL
 };
+
+#define FINGER_NAME_MAX_BYTES 256
 
 /**
  * Initialize the fingerprint database

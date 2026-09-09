@@ -29,15 +29,7 @@ static BiomFingerprint *fingerprint_state = NULL;
 static gboolean
 is_valid_finger_name(const gchar *finger_name)
 {
-    if (!finger_name)
-        return FALSE;
-
-    for (gint i = 0; valid_finger_names[i] != NULL; i++) {
-        if (g_strcmp0(finger_name, valid_finger_names[i]) == 0)
-            return TRUE;
-    }
-
-    return FALSE;
+    return database_is_valid_finger_name(finger_name);
 }
 
 static gboolean
