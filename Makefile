@@ -36,6 +36,8 @@ SOURCES = src/biomd.c \
           src/fingerprint_backend.c \
           src/fingerprint_hidl_backend.c \
           src/fingerprint_binder_hidl.c \
+          src/fingerprint_aidl_backend.c \
+          src/fingerprint_binder_aidl.c \
           src/database.c \
           src/fpd_compat.c \
           src/face.c \

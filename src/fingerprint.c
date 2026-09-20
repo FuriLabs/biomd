@@ -8,6 +8,7 @@
 #include "database.h"
 #include "fpd_compat.h"
 #include "fingerprint_hidl_backend.h"
+#include "fingerprint_aidl_backend.h"
 
 static GDBusNodeInfo *fingerprint_introspection_data = NULL;
 
@@ -1006,7 +1007,16 @@ fingerprint_init(GDBusConnection *connection)
         .user_data = NULL
     };
 
-    fingerprint_state->backend = fingerprint_hidl_backend_new(callbacks);
+    /* prefer AIDL, fall back to HIDL */
+    fingerprint_state->backend = fingerprint_aidl_backend_new(callbacks);
+
+    if (fingerprint_state->backend) {
+        g_debug("Using the AIDL fingerprint HAL");
+    } else {
+        fingerprint_state->backend = fingerprint_hidl_backend_new(callbacks);
+        if (fingerprint_state->backend)
+            g_debug("Using the HIDL fingerprint HAL");
+    }
 
     if (fingerprint_state->backend) {
         fingerprint_state->backend_available = fingerprint_backend_is_available(fingerprint_state->backend);
