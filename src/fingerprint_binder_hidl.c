@@ -751,6 +751,41 @@ fingerprint_hidl_gatekeeper_load_handle_file(guint32 uid, void** handle, guint32
     return success;
 }
 
+/* get the gatekeeper service again if the HAL was restarted */
+static gboolean
+fingerprint_hidl_gatekeeper_connect(BiomFingerprintHidl* self)
+{
+    GBinderRemoteObject* remote;
+    GBinderClient* client;
+
+    if (self->gatekeeper_client && self->gatekeeper_remote &&
+        !gbinder_remote_object_is_dead(self->gatekeeper_remote))
+        return TRUE;
+
+    g_message("Gatekeeper service went away, connecting again");
+
+    /* autoreleased, take our own reference */
+    remote = gbinder_remote_object_ref(
+        gbinder_servicemanager_get_service_sync(self->sm, GK_SERVICE, NULL));
+    if (!remote) {
+        g_warning("Failed to get gatekeeper remote service");
+        return FALSE;
+    }
+
+    client = gbinder_client_new(remote, GK);
+    if (!client) {
+        g_warning("Failed to create gatekeeper client");
+        gbinder_remote_object_unref(remote);
+        return FALSE;
+    }
+
+    gbinder_client_unref(self->gatekeeper_client);
+    gbinder_remote_object_unref(self->gatekeeper_remote);
+    self->gatekeeper_remote = remote;
+    self->gatekeeper_client = client;
+    return TRUE;
+}
+
 char*
 fingerprint_hidl_gatekeeper_enroll(BiomFingerprintHidl* self, guint32 uid, const char* password)
 {
@@ -897,7 +932,7 @@ cleanup:
     return success;
 }
 
-char*
+static gboolean
 fingerprint_hidl_gatekeeper_delete_user(BiomFingerprintHidl* self, guint32 uid)
 {
     const gint gk_code = GK_DELETE_USER;
@@ -906,8 +941,8 @@ fingerprint_hidl_gatekeeper_delete_user(BiomFingerprintHidl* self, guint32 uid)
     GBinderReader reader;
     GBinderRemoteReply* reply;
     const GatekeeperResponse* gatekeeper_response;
-    gint32 status;
-    char* crypto_blob;
+    gint32 status = -1;
+    gboolean success = FALSE;
 
     /* deleteUser(uint32_t uid)
      *     generates (GatekeeperResponse response); */
@@ -916,26 +951,31 @@ fingerprint_hidl_gatekeeper_delete_user(BiomFingerprintHidl* self, guint32 uid)
     gbinder_writer_append_int32(&writer, uid);
 
     reply = gbinder_client_transact_sync_reply(self->gatekeeper_client, gk_code, req, &status);
-    gbinder_remote_reply_init_reader(reply, &reader);
-    gbinder_reader_read_int32(&reader, &status);
-
-    g_debug("Gatekeeper delete user status %d", status);
-
-    gatekeeper_response = gbinder_reader_read_hidl_struct(&reader, GatekeeperResponse);
-    g_debug("Gatekeeper delete user timeout: %d, gatekeeper status code: %d", gatekeeper_response->timeout, gatekeeper_response->code);
-
-    crypto_blob = g_malloc(gatekeeper_response->data.count + 1);
-    if (crypto_blob) {
-        memcpy(crypto_blob, gatekeeper_response->data.data.ptr, gatekeeper_response->data.count);
-        crypto_blob[gatekeeper_response->data.count] = '\0';
+    if (!reply || status != 0) {
+        g_warning("Gatekeeper delete user transaction failed: %d", status);
+        goto cleanup;
     }
 
-    g_debug("Gatekeeper delete user data: %s", crypto_blob);
+    gbinder_remote_reply_init_reader(reply, &reader);
+    if (!gbinder_reader_read_int32(&reader, &status) || status != 0) {
+        g_warning("Gatekeeper delete user returned status %d", status);
+        goto cleanup;
+    }
 
+    gatekeeper_response = gbinder_reader_read_hidl_struct(&reader, GatekeeperResponse);
+    if (!gatekeeper_response) {
+        g_warning("Could not read gatekeeper delete user response");
+        goto cleanup;
+    }
+
+    g_debug("Gatekeeper delete user timeout: %u, gatekeeper status code: %d",
+            gatekeeper_response->timeout, (gint32) gatekeeper_response->code);
+    success = ((gint32) gatekeeper_response->code >= 0);
+
+cleanup:
     gbinder_local_request_unref(req);
     gbinder_remote_reply_unref(reply);
-
-    return crypto_blob;
+    return success;
 }
 
 BiomFingerprintHidl*
@@ -964,15 +1004,16 @@ fingerprint_hidl_init(const FingerprintHidlCallbacks* callbacks, gpointer user_d
     gatekeeper_remote = gbinder_servicemanager_get_service_sync(sm, GK_SERVICE, NULL);
     if (!gatekeeper_remote) {
         g_warning("Failed to get gatekeeper remote service");
-        gbinder_remote_object_unref(fingerprint_remote);
+        /* autoreleased, not ours to unref */
         gbinder_servicemanager_unref(sm);
         return NULL;
     }
 
     self = g_new0(BiomFingerprintHidl, 1);
     self->sm = sm;
-    self->fingerprint_remote = fingerprint_remote;
-    self->gatekeeper_remote = gatekeeper_remote;
+    /* autoreleased, take our own references */
+    self->fingerprint_remote = gbinder_remote_object_ref(fingerprint_remote);
+    self->gatekeeper_remote = gbinder_remote_object_ref(gatekeeper_remote);
     self->available = FALSE;
 
     if (callbacks)
@@ -1093,6 +1134,9 @@ fingerprint_hidl_perform_enrollment(BiomFingerprintHidl* self, const gchar* pass
         return FALSE;
     }
 
+    if (!fingerprint_hidl_gatekeeper_connect(self))
+        return FALSE;
+
     /* 69 bytes for hw_auth_token_t */
     auth_token = g_malloc(69);
     if (!auth_token) {
@@ -1103,7 +1147,8 @@ fingerprint_hidl_perform_enrollment(BiomFingerprintHidl* self, const gchar* pass
     if (!fingerprint_hidl_gatekeeper_load_handle_file(0 /* uid */, &handle, &handle_size)) {
         g_debug("No existing handle found, enrolling password first");
         fingerprint_hidl_gatekeeper_delete_user(self, 0 /* uid */);
-        fingerprint_hidl_gatekeeper_enroll(self, 0 /* uid */, password ? password : "default_password");
+        g_free(fingerprint_hidl_gatekeeper_enroll(self, 0 /* uid */,
+                                                  password ? password : "default_password"));
 
         if (!fingerprint_hidl_gatekeeper_load_handle_file(0 /* uid */, &handle, &handle_size)) {
             g_warning("Failed to load password handle after enrollment");
