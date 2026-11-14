@@ -1,16 +1,34 @@
-CC = gcc
+CC ?= gcc
 
-CFLAGS = `pkg-config --cflags gio-2.0 glib-2.0 libgbinder sqlite3` -Iinclude
-LDFLAGS = `pkg-config --libs gio-2.0 glib-2.0 libgbinder sqlite3` -lfart -lcrypto
+# flags from the environment, used by every target
+ENV_CFLAGS := $(CFLAGS)
+ENV_LDFLAGS := $(LDFLAGS)
 
-CFLAGS_SESSION = `pkg-config --cflags gio-2.0 glib-2.0 gstreamer-1.0` -Iinclude -Iinclude/session
-LDFLAGS_SESSION = `pkg-config --libs gio-2.0 glib-2.0 gstreamer-1.0`
+# WITH_FACE=0 builds without the FART backend, face is then reported as not supported
+WITH_FACE ?= 1
 
-CFLAGS_FPRINTD = `pkg-config --cflags gio-2.0 glib-2.0` -Iinclude
-LDFLAGS_FPRINTD = `pkg-config --libs gio-2.0 glib-2.0`
+ifeq ($(WITH_FACE),0)
+SOURCES_FACE_BACKEND = src/face_disabled_backend.c
+CFLAGS_FACE = -DFACE_DISABLED
+LDFLAGS_FACE =
+else
+SOURCES_FACE_BACKEND = src/face_fart_backend.c \
+                       src/face_tensorflow_fart.c
+CFLAGS_FACE =
+LDFLAGS_FACE = -lfart
+endif
 
-CFLAGS_PAM = -fPIC -fno-stack-protector `pkg-config --cflags gio-2.0 glib-2.0` -Iinclude
-LDFLAGS_PAM = -shared -lpam -lpthread `pkg-config --libs gio-2.0 glib-2.0`
+CFLAGS = $(ENV_CFLAGS) `pkg-config --cflags gio-2.0 glib-2.0 libgbinder sqlite3` -Iinclude $(CFLAGS_FACE)
+LDFLAGS = $(ENV_LDFLAGS) `pkg-config --libs gio-2.0 glib-2.0 libgbinder sqlite3` $(LDFLAGS_FACE) -lcrypto
+
+CFLAGS_SESSION = $(ENV_CFLAGS) `pkg-config --cflags gio-2.0 glib-2.0 gstreamer-1.0` -Iinclude -Iinclude/session
+LDFLAGS_SESSION = $(ENV_LDFLAGS) `pkg-config --libs gio-2.0 glib-2.0 gstreamer-1.0`
+
+CFLAGS_FPRINTD = $(ENV_CFLAGS) `pkg-config --cflags gio-2.0 glib-2.0` -Iinclude
+LDFLAGS_FPRINTD = $(ENV_LDFLAGS) `pkg-config --libs gio-2.0 glib-2.0`
+
+CFLAGS_PAM = $(ENV_CFLAGS) -fPIC -fno-stack-protector `pkg-config --cflags gio-2.0 glib-2.0` -Iinclude
+LDFLAGS_PAM = $(ENV_LDFLAGS) -shared -lpam -lpthread `pkg-config --libs gio-2.0 glib-2.0`
 
 SOURCES = src/biomd.c \
           src/manager.c \
@@ -18,12 +36,13 @@ SOURCES = src/biomd.c \
           src/fingerprint_backend.c \
           src/fingerprint_hidl_backend.c \
           src/fingerprint_binder_hidl.c \
+          src/fingerprint_aidl_backend.c \
+          src/fingerprint_binder_aidl.c \
           src/database.c \
           src/fpd_compat.c \
           src/face.c \
           src/face_backend.c \
-          src/face_fart_backend.c \
-          src/face_tensorflow_fart.c
+          $(SOURCES_FACE_BACKEND)
 
 SOURCES_SESSION = src/session/biomd_session.c \
                   src/session/session_face.c \
@@ -43,6 +62,8 @@ HEADERS = include/biomd_enums.h
 
 PREFIX ?= /usr
 TRIPLET ?= $(shell $(CC) -dumpmachine)
+
+LIBDIR ?= $(PREFIX)/lib/$(TRIPLET)
 
 all: $(TARGET) $(TARGET_SESSION) $(TARGET_FPRINTD) $(TARGET_PAM)
 
@@ -83,8 +104,8 @@ install: all
 	install -m 0644 data/10-biomd.conf $(DESTDIR)$(PREFIX)/lib/systemd/system/fprintd.service.d/
 	install -m 0644 data/biomd-session.service $(DESTDIR)$(PREFIX)/lib/systemd/user/
 
-	install -d $(DESTDIR)$(PREFIX)/lib/$(TRIPLET)/security
-	install -m 0644 $(TARGET_PAM) $(DESTDIR)$(PREFIX)/lib/$(TRIPLET)/security/
+	install -d $(DESTDIR)$(LIBDIR)/security
+	install -m 0644 $(TARGET_PAM) $(DESTDIR)$(LIBDIR)/security/
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/sbin/$(TARGET)
@@ -92,7 +113,7 @@ uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/share/dbus-1/system.d/io.FuriOS.Biomd.conf
 	rm -f $(DESTDIR)$(PREFIX)/libexec/$(TARGET_SESSION)
 	rm -f $(DESTDIR)$(PREFIX)/libexec/$(TARGET_FPRINTD)
-	rm -f $(DESTDIR)$(PREFIX)/lib/$(TRIPLET)/security/$(TARGET_PAM)
+	rm -f $(DESTDIR)$(LIBDIR)/security/$(TARGET_PAM)
 	rm -f $(DESTDIR)$(PREFIX)/lib/systemd/user/biomd-session.service
 	rm -f $(DESTDIR)$(PREFIX)/lib/systemd/system/fprintd.service.d/10-biomd.conf
 	rm -f $(DESTDIR)$(PREFIX)/include/biomd/biomd_enums.h

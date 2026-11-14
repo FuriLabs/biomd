@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <sqlite3.h>
 #include <glib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
@@ -464,17 +465,16 @@ database_get_all_fingerprints(void)
 gboolean
 database_is_valid_finger_name(const gchar *finger_name)
 {
+    gsize len;
+
     if (finger_name == NULL)
         return FALSE;
-    if (g_str_has_prefix(finger_name, "finger_"))
-        return TRUE;
 
-    for (int i = 0; valid_finger_names[i] != NULL; i++) {
-        if (g_strcmp0(finger_name, valid_finger_names[i]) == 0)
-            return TRUE;
-    }
+    len = strlen(finger_name);
+    if (len == 0 || len > FINGER_NAME_MAX_BYTES)
+        return FALSE;
 
-    return FALSE;
+    return g_utf8_validate(finger_name, len, NULL);
 }
 
 gchar*
