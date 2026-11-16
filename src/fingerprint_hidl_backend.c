@@ -145,7 +145,7 @@ fingerprint_hidl_backend_new(FingerprintBackendCallbacks callbacks)
 
     data->hidl = fingerprint_hidl_init(&hidl_callbacks, backend);
     if (!data->hidl) {
-        g_warning("Failed to initialize HIDL fingerprint backend");
+        g_debug("HIDL fingerprint HAL not available");
         fingerprint_backend_free(backend);
         return NULL;
     }

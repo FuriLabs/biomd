@@ -146,7 +146,7 @@ fingerprint_aidl_backend_new(FingerprintBackendCallbacks callbacks)
 
     data->aidl = fingerprint_aidl_init(&aidl_callbacks, backend);
     if (!data->aidl) {
-        g_debug("AIDL fingerprint HAL not usable");
+        g_debug("AIDL fingerprint HAL not available");
         fingerprint_backend_free(backend);
         return NULL;
     }
