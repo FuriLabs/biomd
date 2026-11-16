@@ -765,16 +765,15 @@ fingerprint_hidl_gatekeeper_connect(BiomFingerprintHidl* self)
     g_message("Gatekeeper service went away, connecting again");
 
     /* autoreleased, take our own reference */
-    remote = gbinder_remote_object_ref(
-        gbinder_servicemanager_get_service_sync(self->sm, GK_SERVICE, NULL));
+    remote = gbinder_remote_object_ref(gbinder_servicemanager_get_service_sync(self->sm, GK_SERVICE, NULL));
     if (!remote) {
-        g_warning("Failed to get gatekeeper remote service");
+        g_debug("Failed to get gatekeeper remote service");
         return FALSE;
     }
 
     client = gbinder_client_new(remote, GK);
     if (!client) {
-        g_warning("Failed to create gatekeeper client");
+        g_debug("Failed to create gatekeeper client");
         gbinder_remote_object_unref(remote);
         return FALSE;
     }
@@ -918,7 +917,7 @@ fingerprint_hidl_gatekeeper_verify(BiomFingerprintHidl* self, guint32 uid, guint
 
     g_debug("Gatekeeper verify timeout: %d, gatekeeper status code: %d", gatekeeper_response->timeout, gatekeeper_response->code);
 
-    // hw_auth_token_t must be 69 bytes long
+    /* hw_auth_token_t must be 69 bytes long */
     if (auth_token && gatekeeper_response->data.count == 69) {
         memcpy(auth_token, gatekeeper_response->data.data.ptr, 69);
         success = TRUE;
@@ -996,14 +995,14 @@ fingerprint_hidl_init(const FingerprintHidlCallbacks* callbacks, gpointer user_d
 
     fingerprint_remote = gbinder_servicemanager_get_service_sync(sm, FP_SERVICE, NULL);
     if (!fingerprint_remote) {
-        g_warning("Failed to get fingerprint remote service");
+        g_debug("Failed to get fingerprint remote service");
         gbinder_servicemanager_unref(sm);
         return NULL;
     }
 
     gatekeeper_remote = gbinder_servicemanager_get_service_sync(sm, GK_SERVICE, NULL);
     if (!gatekeeper_remote) {
-        g_warning("Failed to get gatekeeper remote service");
+        g_debug("Failed to get gatekeeper remote service");
         /* autoreleased, not ours to unref */
         gbinder_servicemanager_unref(sm);
         return NULL;
@@ -1023,14 +1022,14 @@ fingerprint_hidl_init(const FingerprintHidlCallbacks* callbacks, gpointer user_d
 
     self->fingerprint_client = gbinder_client_new(self->fingerprint_remote, FP);
     if (!self->fingerprint_client) {
-        g_warning("Failed to create fingerprint client");
+        g_debug("Failed to create fingerprint client");
         fingerprint_hidl_cleanup(self);
         return NULL;
     }
 
     self->gatekeeper_client = gbinder_client_new(self->gatekeeper_remote, GK);
     if (!self->gatekeeper_client) {
-        g_warning("Failed to create gatekeeper client");
+        g_debug("Failed to create gatekeeper client");
         fingerprint_hidl_cleanup(self);
         return NULL;
     }
@@ -1100,7 +1099,7 @@ gboolean
 fingerprint_hidl_setup(BiomFingerprintHidl* self)
 {
     if (!self || !self->available) {
-        g_warning("Fingerprint HIDL interface not available for setup");
+        g_debug("Fingerprint HIDL interface not available for setup");
         return FALSE;
     }
 
@@ -1122,7 +1121,7 @@ fingerprint_hidl_perform_enrollment(BiomFingerprintHidl* self, const gchar* pass
     gboolean verify_success = FALSE;
 
     if (!self || !self->available) {
-        g_warning("Fingerprint HIDL interface not available for enrollment");
+        g_debug("Fingerprint HIDL interface not available for enrollment");
         return FALSE;
     }
 
@@ -1130,7 +1129,7 @@ fingerprint_hidl_perform_enrollment(BiomFingerprintHidl* self, const gchar* pass
 
     auth = fingerprint_hidl_pre_enroll(self);
     if (auth == 0) {
-        g_warning("Failed to get pre-enroll challenge");
+        g_debug("Failed to get pre-enroll challenge");
         return FALSE;
     }
 
@@ -1184,7 +1183,7 @@ gboolean
 fingerprint_hidl_perform_authentication(BiomFingerprintHidl* self)
 {
     if (!self || !self->available) {
-        g_warning("Fingerprint HIDL interface not available for authentication");
+        g_debug("Fingerprint HIDL interface not available for authentication");
         return FALSE;
     }
 
@@ -1197,7 +1196,7 @@ gboolean
 fingerprint_hidl_cancel_operation(BiomFingerprintHidl* self)
 {
     if (!self || !self->available) {
-        g_warning("Fingerprint HIDL interface not available for cancellation");
+        g_debug("Fingerprint HIDL interface not available for cancellation");
         return FALSE;
     }
 
@@ -1210,7 +1209,7 @@ gboolean
 fingerprint_hidl_remove_fingerprint(BiomFingerprintHidl* self, guint32 finger_id)
 {
     if (!self || !self->available) {
-        g_warning("Fingerprint HIDL interface not available for removal");
+        g_debug("Fingerprint HIDL interface not available for removal");
         return FALSE;
     }
 

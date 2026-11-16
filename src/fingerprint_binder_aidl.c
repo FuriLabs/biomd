@@ -844,7 +844,7 @@ fingerprint_aidl_init(const FingerprintAidlCallbacks* callbacks, gpointer user_d
 
     sm = gbinder_servicemanager_new(BINDER_DEVICE);
     if (!sm) {
-        g_warning("Failed to create gbinder service manager for %s", BINDER_DEVICE);
+        g_debug("Failed to create gbinder service manager for %s", BINDER_DEVICE);
         return NULL;
     }
 
@@ -868,14 +868,13 @@ fingerprint_aidl_init(const FingerprintAidlCallbacks* callbacks, gpointer user_d
 
     self->fingerprint_client = gbinder_client_new(self->fingerprint_remote, FP_AIDL);
     if (!self->fingerprint_client) {
-        g_warning("Failed to create fingerprint client");
+        g_debug("Failed to create fingerprint client");
         fingerprint_aidl_cleanup(self);
         return NULL;
     }
 
     /* the HAL is @VintfStability and requires the same of the callback */
-    self->session_callback = gbinder_servicemanager_new_local_object(
-        sm, FP_AIDL_CALLBACK, fingerprint_aidl_session_callback, self);
+    self->session_callback = gbinder_servicemanager_new_local_object(sm, FP_AIDL_CALLBACK, fingerprint_aidl_session_callback, self);
     if (!self->session_callback) {
         g_warning("Failed to create session callback object");
         fingerprint_aidl_cleanup(self);
@@ -942,7 +941,7 @@ fingerprint_aidl_perform_enrollment(BiomFingerprintAidl* self, const gchar* pass
     guint32 handle_size = 0;
 
     if (!self || !self->available) {
-        g_warning("Fingerprint AIDL interface not available for enrollment");
+        g_debug("Fingerprint AIDL interface not available for enrollment");
         return FALSE;
     }
 
@@ -1006,7 +1005,7 @@ fingerprint_aidl_perform_authentication(BiomFingerprintAidl* self)
     gboolean success = FALSE;
 
     if (!self || !self->available) {
-        g_warning("Fingerprint AIDL interface not available for authentication");
+        g_debug("Fingerprint AIDL interface not available for authentication");
         return FALSE;
     }
 
